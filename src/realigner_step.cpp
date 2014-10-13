@@ -413,7 +413,7 @@ void RealignerStepImpl::performRealignment()
     if (options.verbosity >= 2 || msasTxtOut.good())
     {
         if (msasTxtOut.good())
-            msasTxtOut << ">" << store.contigNameStore[0] << " before realignment\n";
+            msasTxtOut << ">" << store.contigNameStore[0] << " after realignment\n";
         if (options.verbosity >= 2)
             std::cerr << ">" << store.contigNameStore[0] << " after realignment\n";
 
