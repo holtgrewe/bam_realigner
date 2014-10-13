@@ -77,6 +77,14 @@ private:
         region.beginPos = std::max(0u, region.beginPos);
         region.endPos += options.windowRadius;
     }
+    // Extend region by extents of alignment.
+    void extendRegion(seqan::BamAlignmentRecord const & record)
+    {
+        if (record.rID != (int)region.rID)
+            return;  // do not update if on difference contig
+        region.beginPos = std::min((int)region.beginPos, record.beginPos);
+        region.endPos = std::max((int)region.endPos, (int)(record.beginPos + getAlignmentLengthInRef(record)));
+    }
 
     // Load reference sequence.
     void loadReference();
@@ -114,8 +122,7 @@ void RealignerStepImpl::loadAlignments()
         std::cerr << "Loading alignments...\n";
 
     // Translate region reference name to reference ID in BAM file.
-    int rID = 0;
-    if (!getIdByName(rID, nameStoreCache(context(bamFileIn)), region.seqName))
+    if (!getIdByName(region.rID, nameStoreCache(context(bamFileIn)), region.seqName))
     {
         std::string msg = std::string("Unknown reference ")  + toCString(region.seqName);
         throw seqan::IOError(msg.c_str());
@@ -123,7 +130,7 @@ void RealignerStepImpl::loadAlignments()
 
     // Jump to region using BAI file.
     bool hasAlignments = false;
-    if (!jumpToRegion(bamFileIn, hasAlignments, rID, region.beginPos, region.endPos, baiIndex))
+    if (!jumpToRegion(bamFileIn, hasAlignments, region.rID, region.beginPos, region.endPos, baiIndex))
         throw seqan::IOError("Problem jumping in file.\n");
     if (!hasAlignments)
     {
@@ -140,8 +147,11 @@ void RealignerStepImpl::loadAlignments()
     while (true)
     {
         readRecord(record, bamFileIn);
-        if (record.beginPos > (int)region.endPos)
+        if (record.rID == seqan::BamAlignmentRecord::INVALID_REFID)
+            break;  // done, no more aligned records
+        if (std::make_pair(record.rID, record.beginPos) > std::make_pair((int)region.rID, (int)region.endPos))
             break;  // done, no more records
+        extendRegion(record);
         records.push_back(record);
     }
 
@@ -151,8 +161,10 @@ void RealignerStepImpl::loadAlignments()
 
 void RealignerStepImpl::run()
 {
-    loadReference();
+    // Load alignments, updates positions in region.
     loadAlignments();
+    // Load reference sequence in regions.
+    loadReference();
 }
 
 // ---------------------------------------------------------------------------
