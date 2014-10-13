@@ -41,6 +41,7 @@
 #include <seqan/bam_io.h>
 #include <seqan/seq_io.h>
 #include <seqan/intervals_io.h>
+#include <seqan/realign.h>
 #include <seqan/store.h>
 #include <seqan/misc/misc_interval_tree.h>
 
@@ -94,6 +95,8 @@ private:
     void loadAlignments();
     // Build FragmentStore from aligned records.
     void buildFragmentStore();
+    // Perform realignment on store.
+    void performRealignment();
 
     // The reference sequence window.
     seqan::Dna5String ref;
@@ -173,7 +176,11 @@ void RealignerStepImpl::run()
     loadReference();
     // Build FragmentStore from the aligned alignment records.
     buildFragmentStore();
+    // Perform realignment.
+    performRealignment();
 }
+
+// TODO(holtgrew): This function is much too big, split into smaller ones!
 
 void RealignerStepImpl::buildFragmentStore()
 {
@@ -206,7 +213,9 @@ void RealignerStepImpl::buildFragmentStore()
         if (hasFlagUnmapped(record))
             continue;
         int beginPos = record.beginPos - region.beginPos;
-        int endPos = beginPos + getAlignmentLengthInRef(record);
+        int clippedLength = 0;
+        _getClippedLength(record.cigar, clippedLength);
+        int endPos = beginPos + clippedLength;
         auto alignmentID = appendAlignedRead(store, readID, 0, beginPos, endPos);
 
         // typedef TFragmentStore::TContigStore TContigStore;
@@ -227,6 +236,7 @@ void RealignerStepImpl::buildFragmentStore()
         TReadGaps readGaps(store.readSeqStore[readID],
                            store.alignedReadStore[alignmentID].gaps);
         unsigned leadingGaps = cigarToGapAnchorRead(record.cigar, readGaps);
+        store.alignedReadStore[alignmentID].beginPos += leadingGaps;
         store.alignedReadStore[alignmentID].beginPos += leadingGaps;
 
         // Update readGapPositions and refGapPositions.
@@ -341,15 +351,18 @@ void RealignerStepImpl::buildFragmentStore()
 
             int delta = readInsertions[el.readId].count(it->first) ? readInsertions[el.readId][it->first] : 0;
             insertGaps(readGaps, viewPos, it->second - delta);
-            if (options.verbosity >= 2)
-                std::cerr << "INSERTING READ GAPS\t" << el.readId << "\t" << readGaps << "\t" << viewPos << "\n";
+            el.endPos += it->second - delta;
+            if (options.verbosity >= 3)
+                std::cerr << "INSERTING READ GAPS\t" << el.readId << "\t" << readGaps << "\t" << viewPos
+                          << "\t" << (it->second - delta) << "\n";
         }
         // Update reads left of where we are inserting gaps.
         auto itA = lowerBoundAlignedReads(store.alignedReadStore, toViewPosition(contigGaps, it->first), seqan::SortBeginPos());
         for (; itA != end(store.alignedReadStore, seqan::Standard()); ++itA)
         {
-            if (options.verbosity >= 2)
-                std::cerr << "SHIFTING LEFT\t" << itA->readId << "\t" << store.readSeqStore[itA->readId] << " by " << it->second << "\n";
+            if (options.verbosity >= 3)
+                std::cerr << "SHIFTING LEFT\t" << itA->readId << "\t" << store.readSeqStore[itA->readId]
+                          << " by " << it->second << "\n";
             itA->beginPos += it->second;
             itA->endPos += it->second;
         }
@@ -359,7 +372,7 @@ void RealignerStepImpl::buildFragmentStore()
     for (auto it = refGaps.rbegin(); it != refGaps.rend(); ++it)
     {
         // Insert gaps into contigs.
-        if (options.verbosity >= 2)
+        if (options.verbosity >= 3)
             std::cerr << "INSERTING CONTIG GAPS\t" << it->first << "\t" << it->second << "\n";
         insertGaps(contigGaps, it->first, it->second);
     }
@@ -372,6 +385,34 @@ void RealignerStepImpl::buildFragmentStore()
         seqan::AlignedReadLayout layout;
         layoutAlignment(layout, store);
         printAlignment(std::cerr, layout, store, 0, 0, (int)(region.endPos - region.beginPos), 0, 1000);
+    }
+}
+
+void RealignerStepImpl::performRealignment()
+{
+    if (options.verbosity >= 2)
+        std::cerr << "Performing realignment\n";
+    reAlignment(store, 0, 1, 10, 1, 0, 0, /*debug=*/(options.verbosity >= 3),
+                /*printTiming=*/(options.verbosity >= 2));
+    if (options.verbosity >= 2)
+        std::cerr << "  => DONE\n";
+
+    // Print store after realignment.
+    if (options.verbosity >= 2)
+    {
+        std::cerr << "READ LAYOUT AFTER REALIGNMENT\n";
+        std::cerr << ">" << store.contigNameStore[0] << "\n";
+        seqan::AlignedReadLayout layout;
+        layoutAlignment(layout, store);
+        int minPos = seqan::maxValue<int>(), maxPos = seqan::minValue<int>();
+        for (auto const & el : store.alignedReadStore)
+        {
+            minPos = std::min(minPos, (int)el.beginPos);
+            maxPos = std::max(maxPos, (int)el.endPos);
+        }
+        if (minPos == seqan::maxValue<int>())
+            minPos = maxPos = 0;
+        printAlignment(std::cerr, layout, store, 0, minPos, maxPos, 0, 1000);
     }
 }
 
