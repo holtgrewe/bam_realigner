@@ -69,6 +69,10 @@ private:
     // Open intervals file.
     void openIntervals();
 
+    // Process regions one-by-one.
+    void processAllRegions();
+    void processOneRegion(seqan::GenomicRegion const & region);
+
     // Program configuration.
     BamRealignerOptions options;
 
@@ -86,6 +90,12 @@ void BamRealignerAppImpl::run()
         std::cerr << "BAM Realigner\n"
                   << "=============\n\n";
         options.print(std::cerr);
+    }
+
+    // Open Input Files
+
+    if (options.verbosity >= 1)
+    {
         std::cerr << "\n"
                   << "__OPENING INPUT FILES____________________________________________\n"
                   << "\n";
@@ -95,6 +105,38 @@ void BamRealignerAppImpl::run()
     openFai();
     openBam();
     openIntervals();
+
+    // Process Intervals
+
+    processAllRegions();
+
+    // Writing Output
+}
+
+void BamRealignerAppImpl::processAllRegions()
+{
+    std::cerr << "\n"
+              << "__PROCESSING REGIONS_____________________________________________\n"
+              << "\n";
+
+    seqan::GenomicRegion region;
+    for (unsigned no = 1; !atEnd(intervalsFileIn); ++no)
+    {
+        readRecord(region, intervalsFileIn);
+        seqan::CharString buffer;
+        region.toString(buffer);
+        // std::cerr << "\r                                                   "
+        //           << "\rProcessing (#" << no << ") " << buffer << std::flush;
+        std::cerr << "Processing (#" << no << ") " << buffer << "\n";
+
+        processOneRegion(region);
+    }
+
+    std::cerr << " DONE\n";
+}
+
+void BamRealignerAppImpl::processOneRegion(seqan::GenomicRegion const & region)
+{
 }
 
 void BamRealignerAppImpl::openFai()
