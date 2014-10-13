@@ -43,6 +43,7 @@
 #include <seqan/intervals_io.h>
 
 #include "bam_realigner_options.h"
+#include "realigner_step.h"
 
 namespace {  // anonymous namespace
 
@@ -79,8 +80,10 @@ private:
     // Objects used for I/O.
     seqan::FaiIndex faiIndex;
     seqan::BamFileIn bamFileIn;
-    seqan::BamIndex<seqan::Bai> bamIndex;
+    seqan::BamIndex<seqan::Bai> baiIndex;
     seqan::IntervalsFileIn intervalsFileIn;
+    // BAM header is read into this variable.
+    seqan::BamHeader bamHeader;
 };
 
 void BamRealignerAppImpl::run()
@@ -137,6 +140,8 @@ void BamRealignerAppImpl::processAllRegions()
 
 void BamRealignerAppImpl::processOneRegion(seqan::GenomicRegion const & region)
 {
+    RealignerStep worker(bamFileIn, baiIndex, faiIndex, region, options);
+    worker.run();
 }
 
 void BamRealignerAppImpl::openFai()
@@ -164,10 +169,16 @@ void BamRealignerAppImpl::openBam()
     if (options.verbosity >= 1)
         std::cerr << " OK\n";
 
+    if (options.verbosity >= 1)
+        std::cerr << "    Reading header ...";
+    readRecord(bamHeader, bamFileIn);
+    if (options.verbosity >= 1)
+        std::cerr << " OK\n";
+
     std::string baiPath = options.inAlignmentPath + ".bai";
     if (options.verbosity >= 1)
         std::cerr << "    Opening " << baiPath << " ...";
-    if (!open(bamIndex, baiPath.c_str()))
+    if (!open(baiIndex, baiPath.c_str()))
         throw seqan::IOError("Could not open BAI file.");
     if (options.verbosity >= 1)
         std::cerr << "OK\n";
