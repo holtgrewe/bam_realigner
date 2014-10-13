@@ -59,12 +59,15 @@ namespace {  // anonymous namespace
 class RealignerStepImpl
 {
 public:
-    RealignerStepImpl(seqan::BamFileIn & bamFileIn,
+    RealignerStepImpl(seqan::BamFileOut & bamFileOut,
+                      seqan::VirtualStream<char, seqan::Output> & msasTxtOut,
+                      seqan::BamFileIn & bamFileIn,
                       seqan::BamIndex<seqan::Bai> & baiIndex,
                       seqan::FaiIndex & faiIndex,
                       seqan::GenomicRegion const & region,
                       BamRealignerOptions const & options) :
-            bamFileIn(bamFileIn), baiIndex(baiIndex), faiIndex(faiIndex), region(region), options(options)
+            bamFileOut(bamFileOut), msasTxtOut(msasTxtOut), bamFileIn(bamFileIn), baiIndex(baiIndex),
+            faiIndex(faiIndex), region(region), options(options)
     {
         extendRegion();
     }
@@ -72,6 +75,19 @@ public:
     void run();
 
 private:
+
+    // Typedefs for using the store a big more comfortably.
+    typedef seqan::FragmentStore<> TFragmentStore;
+    typedef TFragmentStore::TAlignedReadStore TAlignedReadStore;
+    typedef seqan::Value<TAlignedReadStore>::Type TAlignedRead;
+    typedef TFragmentStore::TReadSeqStore TReadSeqStore;
+    typedef seqan::Value<TReadSeqStore>::Type TReadSeq;
+    typedef seqan::Gaps<TReadSeq, seqan::AnchorGaps<TAlignedRead::TGapAnchors> > TReadGaps;
+
+    typedef TFragmentStore::TContigStore TContigStore;
+    typedef seqan:: Value<TContigStore>::Type TContig;
+    typedef TFragmentStore::TContigSeq TContigSeq;
+    typedef seqan::Gaps<TContigSeq, seqan::AnchorGaps<TContig::TGapAnchors> > TContigGaps;
 
     // Extend region by options.windowRadius.
     void extendRegion()
@@ -97,12 +113,19 @@ private:
     void buildFragmentStore();
     // Perform realignment on store.
     void performRealignment();
+    // Update the BAM records from MSA stored in store.
+    void updateBamRecords();
+    // Write out BAM records.
+    void writeBamRecords();
 
     // The reference sequence window.
     seqan::Dna5String ref;
     // The alignment records overlapping with the window.
     std::vector<seqan::BamAlignmentRecord> records;
 
+    // Output files.
+    seqan::BamFileOut & bamFileOut;
+    seqan::VirtualStream<char, seqan::Output> & msasTxtOut;
     // Input BAM and FAI index.
     seqan::BamFileIn & bamFileIn;
     seqan::BamIndex<seqan::Bai> & baiIndex;
@@ -178,6 +201,10 @@ void RealignerStepImpl::run()
     buildFragmentStore();
     // Perform realignment.
     performRealignment();
+    // Update the BAM records before writing out.
+    updateBamRecords();
+    // Write out BAM records.
+    writeBamRecords();
 }
 
 // TODO(holtgrew): This function is much too big, split into smaller ones!
@@ -218,21 +245,10 @@ void RealignerStepImpl::buildFragmentStore()
         int endPos = beginPos + clippedLength;
         auto alignmentID = appendAlignedRead(store, readID, 0, beginPos, endPos);
 
-        // typedef TFragmentStore::TContigStore TContigStore;
-        // typedef seqan:: Value<TContigStore>::Type TContig;
-        // typedef TFragmentStore::TContigSeq TContigSeq;
-        // typedef seqan::Gaps<TContigSeq, seqan::AnchorGaps<TContig::TGapAnchors> > TContigGaps;
-
         // -------------------------------------------------------------------
         // Update read gaps and begin offset in case of leading gaps.
         // -------------------------------------------------------------------
 
-        typedef seqan::FragmentStore<> TFragmentStore;
-        typedef TFragmentStore::TAlignedReadStore TAlignedReadStore;
-        typedef seqan::Value<TAlignedReadStore>::Type TAlignedRead;
-        typedef TFragmentStore::TReadSeqStore TReadSeqStore;
-        typedef seqan::Value<TReadSeqStore>::Type TReadSeq;
-        typedef seqan::Gaps<TReadSeq, seqan::AnchorGaps<TAlignedRead::TGapAnchors> > TReadGaps;
         TReadGaps readGaps(store.readSeqStore[readID],
                            store.alignedReadStore[alignmentID].gaps);
         unsigned leadingGaps = cigarToGapAnchorRead(record.cigar, readGaps);
@@ -308,12 +324,7 @@ void RealignerStepImpl::buildFragmentStore()
     sortAlignedReads(store.alignedReadStore, seqan::SortEndPos());
     sortAlignedReads(store.alignedReadStore, seqan::SortBeginPos());
 
-    typedef seqan::FragmentStore<> TFragmentStore;
-    typedef TFragmentStore::TContigStore TContigStore;
-    typedef seqan:: Value<TContigStore>::Type TContig;
-    typedef TFragmentStore::TContigSeq TContigSeq;
-    typedef seqan::Gaps<TContigSeq, seqan::AnchorGaps<TContig::TGapAnchors> > TContigGaps;
-    // Build contig gaps.
+    // Obtain contig gaps.
     TContigGaps contigGaps(store.contigStore[0].seq, store.contigStore[0].gaps);
 
     // Build interval tree for overlapping reads lookup (cargo is alignment id, not read id!)
@@ -337,11 +348,6 @@ void RealignerStepImpl::buildFragmentStore()
             auto & el = store.alignedReadStore[alignmentID];
             int viewPos = it->first - el.beginPos;
 
-            typedef TFragmentStore::TAlignedReadStore TAlignedReadStore;
-            typedef seqan::Value<TAlignedReadStore>::Type TAlignedRead;
-            typedef TFragmentStore::TReadSeqStore TReadSeqStore;
-            typedef seqan::Value<TReadSeqStore>::Type TReadSeq;
-            typedef seqan::Gaps<TReadSeq, seqan::AnchorGaps<TAlignedRead::TGapAnchors> > TReadGaps;
             TReadGaps readGaps(store.readSeqStore[el.readId],
                                store.alignedReadStore[alignmentID].gaps);
 
@@ -378,13 +384,19 @@ void RealignerStepImpl::buildFragmentStore()
     }
 
     // Print store after loading.
-    if (options.verbosity >= 2)
+    if (options.verbosity >= 2 || msasTxtOut.good())
     {
-        std::cerr << "READ LAYOUT AFTER LOADING\n";
-        std::cerr << ">" << store.contigNameStore[0] << "\n";
+        if (msasTxtOut.good())
+            msasTxtOut << ">" << store.contigNameStore[0] << " before realignment\n";
+        if (options.verbosity >= 2)
+            std::cerr << ">" << store.contigNameStore[0] << " before realignment\n";
+
         seqan::AlignedReadLayout layout;
         layoutAlignment(layout, store);
-        printAlignment(std::cerr, layout, store, 0, 0, (int)(region.endPos - region.beginPos), 0, 1000);
+        if (msasTxtOut.good())
+            printAlignment(msasTxtOut, layout, store, 0, 0, (int)(region.endPos - region.beginPos), 0, 10000);
+        if (options.verbosity >= 2)
+            printAlignment(std::cerr, layout, store, 0, 0, (int)(region.endPos - region.beginPos), 0, 10000);
     }
 }
 
@@ -398,10 +410,13 @@ void RealignerStepImpl::performRealignment()
         std::cerr << "  => DONE\n";
 
     // Print store after realignment.
-    if (options.verbosity >= 2)
+    if (options.verbosity >= 2 || msasTxtOut.good())
     {
-        std::cerr << "READ LAYOUT AFTER REALIGNMENT\n";
-        std::cerr << ">" << store.contigNameStore[0] << "\n";
+        if (msasTxtOut.good())
+            msasTxtOut << ">" << store.contigNameStore[0] << " before realignment\n";
+        if (options.verbosity >= 2)
+            std::cerr << ">" << store.contigNameStore[0] << " after realignment\n";
+
         seqan::AlignedReadLayout layout;
         layoutAlignment(layout, store);
         int minPos = seqan::maxValue<int>(), maxPos = seqan::minValue<int>();
@@ -412,20 +427,54 @@ void RealignerStepImpl::performRealignment()
         }
         if (minPos == seqan::maxValue<int>())
             minPos = maxPos = 0;
-        printAlignment(std::cerr, layout, store, 0, minPos, maxPos, 0, 1000);
+        if (msasTxtOut.good())
+            printAlignment(msasTxtOut, layout, store, 0, minPos, maxPos, 0, 10000);
+        if (options.verbosity >= 2)
+            printAlignment(std::cerr, layout, store, 0, minPos, maxPos, 0, 10000);
     }
+}
+
+void RealignerStepImpl::updateBamRecords()
+{
+    // Obtain contig gaps.
+    TContigGaps contigGaps(store.contigStore[0].seq, store.contigStore[0].gaps);
+
+    for (auto const & el : store.alignedReadStore)
+    {
+        auto & record = records[el.readId];
+
+        // Obtain read gaps and clipped contig gaps.
+        TReadGaps readGaps(store.readSeqStore[el.readId], el.gaps);
+        TContigGaps clippedContigGaps(store.contigStore[0].seq,
+                                      store.contigStore[0].gaps);
+        setClippedEndPosition(contigGaps, el.endPos);
+        setClippedBeginPosition(contigGaps, el.beginPos);
+
+        // Update alignment position and alignment info.
+        record.beginPos = region.beginPos + toSourcePosition(contigGaps, el.beginPos);
+        getCigarString(record.cigar, clippedContigGaps, readGaps);
+    }
+}
+
+void RealignerStepImpl::writeBamRecords()
+{
+    for (auto const & record : records)
+        writeRecord(bamFileOut, record);
 }
 
 // ---------------------------------------------------------------------------
 // Class RealignerStep
 // ---------------------------------------------------------------------------
 
-RealignerStep::RealignerStep(seqan::BamFileIn & bamFileIn,
+RealignerStep::RealignerStep(seqan::BamFileOut & bamFileOut,
+                             seqan::VirtualStream<char, seqan::Output> & msaTxtOut,
+                             seqan::BamFileIn & bamFileIn,
                              seqan::BamIndex<seqan::Bai> & baiIndex,
                              seqan::FaiIndex & faiIndex,
                              seqan::GenomicRegion const & region,
                              BamRealignerOptions const & options) :
-        impl(new RealignerStepImpl(bamFileIn, baiIndex, faiIndex, region, options))
+        impl(new RealignerStepImpl(bamFileOut, msaTxtOut, bamFileIn, baiIndex, faiIndex,
+                                   region, options))
 {}
 
 RealignerStep::~RealignerStep()

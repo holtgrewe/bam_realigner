@@ -46,11 +46,14 @@ void BamRealignerOptions::print(std::ostream & out) const
 {
     out << "__OPTIONS________________________________________________________\n"
         << "\n"
-        << "VERBOSITY      \t" << verbosity << "\n"
+        << "VERBOSITY       \t" << verbosity << "\n"
         << "\n"
-        << "INPUT REFERENCE\t" << inReferencePath << "\n"
-        << "INPUT ALIGNMENT\t" << inAlignmentPath << "\n"
-        << "INPUT INTERVALS\t" << inIntervalsPath << "\n";
+        << "INPUT REFERENCE \t" << inReferencePath << "\n"
+        << "INPUT ALIGNMENT \t" << inAlignmentPath << "\n"
+        << "INPUT INTERVALS \t" << inIntervalsPath << "\n"
+        << "\n"
+        << "OUTPUT ALIGNMENT\t" << outAlignmentPath << "\n"
+        << "OUTPUT MSAS     \t" << outMsasPath << "\n";
 }
 
 // ----------------------------------------------------------------------------
@@ -90,10 +93,19 @@ BamRealignerOptions parseCommandLine(int argc, char ** argv)
     setRequired(parser, "in-reference", true);
     setValidValues(parser, "in-reference", "fa fasta");
 
-    addOption(parser, seqan::ArgParseOption("", "in-intervals", "Input bed file.",
+    addOption(parser, seqan::ArgParseOption("", "in-intervals", "Input Picard-style intervals file.",
                                             seqan::ArgParseArgument::INPUT_FILE, "FASTA"));
     setRequired(parser, "in-intervals", true);
     setValidValues(parser, "in-intervals", seqan::IntervalsFileIn::getFileFormatExtensions());
+
+    addOption(parser, seqan::ArgParseOption("", "out-alignment", "Output BAM file.",
+                                            seqan::ArgParseArgument::OUTPUTFILE, "BAM"));
+    setRequired(parser, "out-alignment", true);
+    setValidValues(parser, "out-alignment", seqan::BamFileOut::getFileFormatExtensions());
+
+    addOption(parser, seqan::ArgParseOption("", "out-msas", "Output text file with before/after MSAs.",
+                                            seqan::ArgParseArgument::OUTPUTFILE, "TXT"));
+    setValidValues(parser, "out-msas", "txt txt.gz");
 
     // Define Options -- Algorithm Parameters
     addSection(parser, "Algorithm Parameters");
@@ -117,6 +129,8 @@ BamRealignerOptions parseCommandLine(int argc, char ** argv)
     getOptionValue(result.inAlignmentPath, parser, "in-alignment");
     getOptionValue(result.inReferencePath, parser, "in-reference");
     getOptionValue(result.inIntervalsPath, parser, "in-intervals");
+    getOptionValue(result.outAlignmentPath, parser, "out-alignment");
+    getOptionValue(result.outMsasPath, parser, "out-msas");
 
     getOptionValue(result.windowRadius, parser, "window-radius");
 

@@ -39,6 +39,7 @@
 
 #include <seqan/seq_io.h>
 #include <seqan/bam_io.h>
+#include <seqan/stream.h>
 #include <seqan/store.h>
 
 #include "bam_realigner_options.h"
@@ -49,7 +50,9 @@ class RealignerStepImpl;
 class RealignerStep
 {
 public:
-    RealignerStep(seqan::BamFileIn & bamFileIn,
+    RealignerStep(seqan::BamFileOut & bamFileOut,
+                  seqan::VirtualStream<char, seqan::Output> & msaTxtOut,
+                  seqan::BamFileIn & bamFileIn,
                   seqan::BamIndex<seqan::Bai> & baiIndex,
                   seqan::FaiIndex & faiIndex,
                   seqan::GenomicRegion const & region,

@@ -56,7 +56,8 @@ namespace {  // anonymous namespace
 class BamRealignerAppImpl
 {
 public:
-    BamRealignerAppImpl(BamRealignerOptions const & options) : options(options)
+    BamRealignerAppImpl(BamRealignerOptions const & options) :
+            options(options), bamFileIn(bamFileOut)
     {}
 
     void run();
@@ -65,10 +66,15 @@ private:
 
     // Open FASTA index file.
     void openFai();
-    // Open BAM file and index.
-    void openBam();
+    // Open input BAM file and bai index.
+    void openBamIn();
     // Open intervals file.
     void openIntervals();
+
+    // Open output BAM file.
+    void openBamOut();
+    // Open output MSA txt file.
+    void openMsasTxtOut();
 
     // Process regions one-by-one.
     void processAllRegions();
@@ -78,10 +84,13 @@ private:
     BamRealignerOptions options;
 
     // Objects used for I/O.
+    seqan::BamFileOut bamFileOut;
+    seqan::VirtualStream<char, seqan::Output> msasTxtOut;
     seqan::FaiIndex faiIndex;
     seqan::BamFileIn bamFileIn;
     seqan::BamIndex<seqan::Bai> baiIndex;
     seqan::IntervalsFileIn intervalsFileIn;
+
     // BAM header is read into this variable.
     seqan::BamHeader bamHeader;
 };
@@ -102,12 +111,23 @@ void BamRealignerAppImpl::run()
         std::cerr << "\n"
                   << "__OPENING INPUT FILES____________________________________________\n"
                   << "\n";
-        std::cerr << "\nOpening Input Files\n\n";
     }
 
     openFai();
-    openBam();
+    openBamIn();
     openIntervals();
+
+    // Open Input Files
+
+    if (options.verbosity >= 1)
+    {
+        std::cerr << "\n"
+                  << "__OPENING OUTPUT FILES____________________________________________\n"
+                  << "\n";
+    }
+
+    openBamOut();
+    openMsasTxtOut();
 
     // Process Intervals
 
@@ -140,7 +160,7 @@ void BamRealignerAppImpl::processAllRegions()
 
 void BamRealignerAppImpl::processOneRegion(seqan::GenomicRegion const & region)
 {
-    RealignerStep worker(bamFileIn, baiIndex, faiIndex, region, options);
+    RealignerStep worker(bamFileOut, msasTxtOut, bamFileIn, baiIndex, faiIndex, region, options);
     worker.run();
 }
 
@@ -160,7 +180,7 @@ void BamRealignerAppImpl::openFai()
         std::cerr << "OK\n";
 }
 
-void BamRealignerAppImpl::openBam()
+void BamRealignerAppImpl::openBamIn()
 {
     if (options.verbosity >= 1)
         std::cerr << "    Opening " << options.inAlignmentPath << " ...";
@@ -193,6 +213,31 @@ void BamRealignerAppImpl::openIntervals()
     if (options.verbosity >= 1)
         std::cerr << "OK\n";
 }
+
+void BamRealignerAppImpl::openBamOut()
+{
+    if (options.verbosity >= 1)
+        std::cerr << "    Opening " << options.outAlignmentPath << " ...";
+    if (!open(bamFileOut, options.outAlignmentPath.c_str()))
+        throw seqan::IOError("Could not open output BAM file.");
+    if (options.verbosity >= 1)
+        std::cerr << "OK\n";
+    writeRecord(bamFileOut, bamHeader);
+}
+
+void BamRealignerAppImpl::openMsasTxtOut()
+{
+    if (options.outMsasPath.empty())
+        return;
+
+    if (options.verbosity >= 1)
+        std::cerr << "    Opening " << options.outMsasPath << " ...";
+    if (!open(msasTxtOut, options.outMsasPath.c_str()))
+        throw seqan::IOError("Could not open output MSA output txt file.");
+    if (options.verbosity >= 1)
+        std::cerr << "OK\n";
+}
+
 
 // ---------------------------------------------------------------------------
 // Class BamRealignerApp

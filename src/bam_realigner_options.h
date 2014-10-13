@@ -66,6 +66,10 @@ public:
     std::string inReferencePath;
     // Input intervals file (.bed)
     std::string inIntervalsPath;
+    // Output BAM file.
+    std::string outAlignmentPath;
+    // Output text file with MSAs.
+    std::string outMsasPath;
 
     // Additional radius around target intervals to extract reads from.
     int windowRadius;

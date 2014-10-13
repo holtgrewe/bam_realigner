@@ -12,12 +12,10 @@ Using
     # bam_realigner [-v] --in-alignment ALI.bam --in-reference REF.fa \
                          --in-intervals REGIONS.intervals
 
-Use the parameter `-v` to see the generated intermedidate alignments on
-`stderr`.
-
 Caveats
 -------
 
+* Soft clippings are not interpreted (yet).
 * The program only writes out records overlapping with the target regions at
   the moment.
 * Target regions are given with a window radius of 100bp (user parameter) and
