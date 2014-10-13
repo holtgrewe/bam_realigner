@@ -439,9 +439,11 @@ void RealignerStepImpl::updateBamRecords()
     // Obtain contig gaps.
     TContigGaps contigGaps(store.contigStore[0].seq, store.contigStore[0].gaps);
 
-    for (auto const & el : prefix(store.alignedReadStore, length(store.alignedReadStore) - 1))
+    for (auto const & el : store.alignedReadStore)
     {
         auto & record = records[el.readId];
+        if (el.readId + 1 == length(store.readSeqStore))
+            continue;  // skip contig pseudo-read
 
         // Obtain read gaps and clipped contig gaps.
         TReadGaps readGaps(store.readSeqStore[el.readId], el.gaps);
