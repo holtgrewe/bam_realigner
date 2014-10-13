@@ -190,7 +190,7 @@ void BamRealignerAppImpl::openBamIn()
         std::cerr << " OK\n";
 
     if (options.verbosity >= 1)
-        std::cerr << "    Reading header ...";
+        std::cerr << "        Reading header ...";
     readRecord(bamHeader, bamFileIn);
     if (options.verbosity >= 1)
         std::cerr << " OK\n";
