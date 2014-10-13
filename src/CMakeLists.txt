@@ -13,6 +13,8 @@ include_directories (${SEQAN_INCLUDE_DIRS})
 # register our target
 add_executable (bam_realigner
                 bam_realigner.cpp
+                bam_realigner_app.cpp
+                bam_realigner_app.h
                 bam_realigner_options.h
                 bam_realigner_options.cpp)
 target_link_libraries (bam_realigner ${SEQAN_LIBRARIES})

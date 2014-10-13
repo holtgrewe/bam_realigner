@@ -32,54 +32,23 @@
 // Author: Manuel Holtgrewe <manuel.holtgrewe@fu-berlin.de>
 // ==========================================================================
 
-#ifndef BAM_REALIGNER_SRC_BAM_REALIGNER_OPTIONS_H_
-#define BAM_REALIGNER_SRC_BAM_REALIGNER_OPTIONS_H_
+#ifndef BAM_REALIGNER_APP_H_
+#define BAM_REALIGNER_APP_H_
 
-#include <iosfwd>
-#include <string>
-#include <stdexcept>
+#include <memory>
 
-// ----------------------------------------------------------------------------
-// Class InvalidArgumentsException
-// ----------------------------------------------------------------------------
+class BamRealignerOptions;
+class BamRealignerAppImpl;
 
-class InvalidCommandLineArgumentsException : public std::runtime_error
+class BamRealignerApp
 {
 public:
-    InvalidCommandLineArgumentsException() : std::runtime_error("")
-    {}
+    BamRealignerApp(BamRealignerOptions const & options);
+    ~BamRealignerApp();  // for pimpl
+    void run();
+
+private:
+    std::unique_ptr<BamRealignerAppImpl> impl;
 };
 
-// ----------------------------------------------------------------------------
-// Class BamRealignerOptions
-// ----------------------------------------------------------------------------
-
-class BamRealignerOptions
-{
-public:
-    // Verbosity: 0 - quiet, 1 - normal, 2 - verbose, 3 - very verbose.
-    int verbosity;
-
-    // Indexed input alignment file (.bam).
-    std::string inAlignmentPath;
-    // Input reference (.fasta), will build FAI index for it.
-    std::string inReferencePath;
-    // Input intervals file (.bed)
-    std::string inIntervalsPath;
-
-    // Additional radius around target intervals to extract reads from.
-    int windowRadius;
-
-    BamRealignerOptions() : verbosity(1), windowRadius(100)
-    {}
-
-    void print(std::ostream & out) const;
-};
-
-// ----------------------------------------------------------------------------
-// Function parseCommandLine()
-// ----------------------------------------------------------------------------
-
-BamRealignerOptions parseCommandLine(int argc, char ** argv);
-
-#endif  // #ifndef BAM_REALIGNER_SRC_BAM_REALIGNER_OPTIONS_H_
+#endif  // #ifndef BAM_REALIGNER_APP_H_

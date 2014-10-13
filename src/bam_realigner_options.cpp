@@ -36,7 +36,7 @@
 
 #include <seqan/arg_parse.h>
 #include <seqan/bam_io.h>
-#include <seqan/bed_io.h>
+#include <seqan/intervals_io.h>
 
 // ----------------------------------------------------------------------------
 // Class BamRealignerOptions
@@ -93,7 +93,14 @@ BamRealignerOptions parseCommandLine(int argc, char ** argv)
     addOption(parser, seqan::ArgParseOption("", "in-intervals", "Input bed file.",
                                             seqan::ArgParseArgument::INPUT_FILE, "FASTA"));
     setRequired(parser, "in-intervals", true);
-    setValidValues(parser, "in-intervals", seqan::BedFileIn::getFileFormatExtensions());
+    setValidValues(parser, "in-intervals", seqan::IntervalsFileIn::getFileFormatExtensions());
+
+    // Define Options -- Algorithm Parameters
+    addSection(parser, "Algorithm Parameters");
+
+    addOption(parser, seqan::ArgParseOption("", "window-radius", "Window radius to use for extension.",
+                                            seqan::ArgParseArgument::INTEGER, "LEN"));
+    setDefaultValue(parser, "window-radius", 100);
 
     // Parse command line.
     seqan::ArgumentParser::ParseResult res = seqan::parse(parser, argc, argv);
@@ -110,6 +117,8 @@ BamRealignerOptions parseCommandLine(int argc, char ** argv)
     getOptionValue(result.inAlignmentPath, parser, "in-alignment");
     getOptionValue(result.inReferencePath, parser, "in-reference");
     getOptionValue(result.inIntervalsPath, parser, "in-intervals");
+
+    getOptionValue(result.windowRadius, parser, "window-radius");
 
     return result;
 }

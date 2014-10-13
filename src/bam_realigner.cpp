@@ -34,8 +34,9 @@
 
 #include <iostream>
 
-#include <seqan/bam_io.h>
+#include <seqan/stream.h>  // for IOError
 
+#include "bam_realigner_app.h"
 #include "bam_realigner_options.h"
 
 int main(int argc, char ** argv)
@@ -43,9 +44,16 @@ int main(int argc, char ** argv)
     try
     {
         BamRealignerOptions options = parseCommandLine(argc, argv);
+        BamRealignerApp app(options);
+        app.run();
     }
     catch (InvalidCommandLineArgumentsException const & err)
     {
+        return 1;
+    }
+    catch (seqan::IOError const & err)
+    {
+        std::cerr << "\n" << err.what() << "\n";
         return 1;
     }
 
