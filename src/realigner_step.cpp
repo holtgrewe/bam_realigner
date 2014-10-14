@@ -436,9 +436,14 @@ void RealignerStepImpl::performRealignment()
 
 void RealignerStepImpl::updateBamRecords()
 {
-    // Obtain contig gaps.
-    TContigGaps contigGaps(store.contigStore[0].seq, store.contigStore[0].gaps);
+    // Make sure that the contig pseudo-read is the last one.
+    sortAlignedReads(store.alignedReadStore, seqan::SortReadId());
 
+    // Obtain contig gaps.
+    TContigGaps contigGaps(back(store.readSeqStore),
+                           back(store.alignedReadStore).gaps);
+    int cBeginPos = back(store.alignedReadStore).beginPos;
+    //int cEndPos = back(store.alignedReadStore).endPos;
     for (auto const & el : store.alignedReadStore)
     {
         auto & record = records[el.readId];
@@ -447,10 +452,10 @@ void RealignerStepImpl::updateBamRecords()
 
         // Obtain read gaps and clipped contig gaps.
         TReadGaps readGaps(store.readSeqStore[el.readId], el.gaps);
-        TContigGaps clippedContigGaps(store.contigStore[0].seq,
-                                      store.contigStore[0].gaps);
-        setClippedEndPosition(contigGaps, el.endPos);
-        setClippedBeginPosition(contigGaps, el.beginPos);
+        TContigGaps clippedContigGaps(back(store.readSeqStore),
+                                      back(store.alignedReadStore).gaps);
+        setClippedEndPosition(clippedContigGaps, el.endPos - cBeginPos);
+        setClippedBeginPosition(clippedContigGaps, el.beginPos - cBeginPos);
 
         // Update alignment position and alignment info.
         record.beginPos = region.beginPos + toSourcePosition(contigGaps, el.beginPos);
