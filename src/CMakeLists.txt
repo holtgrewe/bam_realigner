@@ -6,7 +6,7 @@ set (SEQAN_FIND_DEPENDENCIES ZLIB)
 find_package (SeqAn REQUIRED)
 
 # enable SeqAn dependencies
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS} ${CXX11_CXX_FLAGS}")
 add_definitions (${SEQAN_DEFINITIONS})
 include_directories (${SEQAN_INCLUDE_DIRS})
 
