@@ -40,7 +40,7 @@
 
 #include <seqan/bam_io.h>
 #include <seqan/seq_io.h>
-#include <seqan/intervals_io.h>
+#include <seqan/simple_intervals_io.h>
 #include <seqan/realign.h>
 #include <seqan/store.h>
 #include <seqan/misc/misc_interval_tree.h>
@@ -176,16 +176,21 @@ void RealignerStepImpl::loadAlignments()
 
     // Load alignments.
     seqan::BamAlignmentRecord record;
+    seqan::GenomicRegion targetRegion = region;
     while (true)
     {
         readRecord(record, bamFileIn);
         if (record.rID == seqan::BamAlignmentRecord::INVALID_REFID)
             break;  // done, no more aligned records
-        if (std::make_pair(record.rID, record.beginPos) > std::make_pair((int)region.rID, (int)region.endPos))
+        if (std::make_pair(record.rID, (int)(record.beginPos + getAlignmentLengthInRef(record))) <= std::make_pair((int)targetRegion.rID, (int)targetRegion.beginPos))
+            continue;  // skip record too far to the left
+        if (std::make_pair(record.rID, record.beginPos) >= std::make_pair((int)targetRegion.rID, (int)targetRegion.endPos))
             break;  // done, no more records
         extendRegion(record);
         records.push_back(record);
     }
+    if (options.verbosity >= 1)
+        std::cerr << "    loaded " << length(records) << " records\n";
 
     if (options.verbosity >= 2)
         std::cerr << "  => DONE\n";
@@ -398,16 +403,20 @@ void RealignerStepImpl::buildFragmentStore()
         if (options.verbosity >= 2)
             printAlignment(std::cerr, layout, store, 0, 0, (int)(region.endPos - region.beginPos), 0, 10000);
     }
+
+    if (options.verbosity >= 1)
+        std::cerr << "    added " << length(store.alignedReadStore) << " alignments\n";
 }
 
 void RealignerStepImpl::performRealignment()
 {
-    if (options.verbosity >= 2)
+    double startTime = seqan::sysTime();
+    if (options.verbosity >= 1)
         std::cerr << "Performing realignment\n";
     reAlignment(store, 0, 1, 10, 1, 0, 0, /*debug=*/(options.verbosity >= 3),
                 /*printTiming=*/(options.verbosity >= 2));
-    if (options.verbosity >= 2)
-        std::cerr << "  => DONE\n";
+    if (options.verbosity >= 1)
+        std::cerr << "  => DONE (took " << seqan::sysTime() - startTime << " s)\n";
 
     // Print store after realignment.
     if (options.verbosity >= 2 || msasTxtOut.good())

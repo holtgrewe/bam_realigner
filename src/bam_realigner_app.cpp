@@ -40,7 +40,7 @@
 
 #include <seqan/bam_io.h>
 #include <seqan/seq_io.h>
-#include <seqan/intervals_io.h>
+#include <seqan/simple_intervals_io.h>
 
 #include "bam_realigner_options.h"
 #include "realigner_step.h"
@@ -89,7 +89,7 @@ private:
     seqan::FaiIndex faiIndex;
     seqan::BamFileIn bamFileIn;
     seqan::BamIndex<seqan::Bai> baiIndex;
-    seqan::IntervalsFileIn intervalsFileIn;
+    seqan::SimpleIntervalsFileIn intervalsFileIn;
 
     // BAM header is read into this variable.
     seqan::BamHeader bamHeader;

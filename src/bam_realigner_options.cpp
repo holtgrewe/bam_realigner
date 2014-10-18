@@ -36,7 +36,7 @@
 
 #include <seqan/arg_parse.h>
 #include <seqan/bam_io.h>
-#include <seqan/intervals_io.h>
+#include <seqan/simple_intervals_io.h>
 
 // ----------------------------------------------------------------------------
 // Class BamRealignerOptions
@@ -73,7 +73,7 @@ BamRealignerOptions parseCommandLine(int argc, char ** argv)
     setDate(parser, "October 2014");
 
     // Define usage line and long description.
-    addUsageLine(parser, "--in-alignment ALI.bam --in-reference REF.fa --in-intervals INT.bed");
+    addUsageLine(parser, "--in-alignment ALI.bam --in-reference REF.fa --in-intervals INT.bed --out-alignment aln.bam [--out-msas MSAS.txt]");
     addDescription(parser, "Read realignments from BAM files.");
 
     addOption(parser, seqan::ArgParseOption("q",  "quiet",        "Quiet output"));
@@ -86,7 +86,7 @@ BamRealignerOptions parseCommandLine(int argc, char ** argv)
     addOption(parser, seqan::ArgParseOption("", "in-alignment", "Input alignment file.",
                                             seqan::ArgParseArgument::INPUT_FILE, "BAM"));
     setRequired(parser, "in-alignment", true);
-    setValidValues(parser, "in-alignment", seqan::BamFileIn::getFileFormatExtensions());
+    setValidValues(parser, "in-alignment", seqan::BamFileIn::getFileExtensions());
 
     addOption(parser, seqan::ArgParseOption("", "in-reference", "Input reference file.",
                                             seqan::ArgParseArgument::INPUT_FILE, "FASTA"));
@@ -96,15 +96,15 @@ BamRealignerOptions parseCommandLine(int argc, char ** argv)
     addOption(parser, seqan::ArgParseOption("", "in-intervals", "Input Picard-style intervals file.",
                                             seqan::ArgParseArgument::INPUT_FILE, "FASTA"));
     setRequired(parser, "in-intervals", true);
-    setValidValues(parser, "in-intervals", seqan::IntervalsFileIn::getFileFormatExtensions());
+    setValidValues(parser, "in-intervals", seqan::SimpleIntervalsFileIn::getFileExtensions());
 
     addOption(parser, seqan::ArgParseOption("", "out-alignment", "Output BAM file.",
-                                            seqan::ArgParseArgument::OUTPUTFILE, "BAM"));
+                                            seqan::ArgParseArgument::OUTPUT_FILE, "BAM"));
     setRequired(parser, "out-alignment", true);
-    setValidValues(parser, "out-alignment", seqan::BamFileOut::getFileFormatExtensions());
+    setValidValues(parser, "out-alignment", seqan::BamFileOut::getFileExtensions());
 
     addOption(parser, seqan::ArgParseOption("", "out-msas", "Output text file with before/after MSAs.",
-                                            seqan::ArgParseArgument::OUTPUTFILE, "TXT"));
+                                            seqan::ArgParseArgument::OUTPUT_FILE, "TXT"));
     setValidValues(parser, "out-msas", "txt txt.gz");
 
     // Define Options -- Algorithm Parameters
@@ -112,7 +112,7 @@ BamRealignerOptions parseCommandLine(int argc, char ** argv)
 
     addOption(parser, seqan::ArgParseOption("", "window-radius", "Window radius to use for extension.",
                                             seqan::ArgParseArgument::INTEGER, "LEN"));
-    setDefaultValue(parser, "window-radius", 100);
+    setDefaultValue(parser, "window-radius", 10);
 
     // Parse command line.
     seqan::ArgumentParser::ParseResult res = seqan::parse(parser, argc, argv);
